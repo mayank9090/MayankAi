@@ -4,8 +4,12 @@ from groq import Groq
 
 app = Flask(__name__)
 
-# Groq Client - Vercel Settings mein GROQ_API_KEY add karna mat bhulna
+# Groq Client
 client = Groq(api_key=os.environ.get("GROQ_API_KEY"))
+
+# --- UPDATE: LOGIN KEY ---
+ACCESS_KEY = "MAYANKAI" 
+# -------------------------
 
 HTML_TEMPLATE = """
 <!DOCTYPE html>
@@ -45,10 +49,31 @@ HTML_TEMPLATE = """
 
         body { background: var(--bg); color: var(--text); height: 100vh; display: flex; justify-content: center; overflow: hidden; }
 
+        /* --- UPDATE: LOGIN SCREEN STYLES --- */
+        #login-overlay {
+            position: fixed; inset: 0; background: #050505; z-index: 999;
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+        }
+        .login-card {
+            background: #111214; padding: 40px 25px; border-radius: 24px;
+            width: 90%; max-width: 350px; text-align: center; border: 1px solid var(--border);
+        }
+        .login-input {
+            width: 100%; padding: 14px; background: #000; border: 1px solid #333;
+            color: white; border-radius: 12px; text-align: center; margin-bottom: 20px; outline: none;
+        }
+        .access-btn {
+            background: transparent; border: 2px solid var(--accent); color: var(--accent);
+            padding: 14px; width: 100%; border-radius: 35px; font-weight: bold; cursor: pointer;
+        }
+        .footer-tag { font-size: 10px; opacity: 0.4; margin-top: 40px; text-align: center; letter-spacing: 1px; }
+
+        /* --- APP SHELL (Hidden initially) --- */
         .app-shell {
+            display: none; /* Changed from flex to none for login */
             width: 100%; max-width: 800px; height: 100vh;
             background: var(--card); backdrop-filter: blur(20px);
-            display: flex; flex-direction: column; position: relative;
+            flex-direction: column; position: relative;
         }
 
         @media (min-width: 768px) {
@@ -75,7 +100,6 @@ HTML_TEMPLATE = """
         .user-bubble { background: var(--user-bubble); color: var(--user-text); border-bottom-right-radius: 4px; font-weight: 500; }
         .ai-bubble { background: var(--ai-bubble); border: 1px solid var(--border); border-bottom-left-radius: 4px; }
 
-        /* Thinking Animation */
         .dot-flashing { font-size: 0.8rem; opacity: 0.5; font-style: italic; }
 
         .input-wrapper {
@@ -84,11 +108,11 @@ HTML_TEMPLATE = """
             display: flex; gap: 12px; align-items: center;
         }
 
-        input {
+        input#userInput {
             flex: 1; background: var(--ai-bubble); border: 1px solid var(--border);
             border-radius: 16px; padding: 14px 20px; color: var(--text); outline: none; font-size: 16px;
         }
-        input:focus { border-color: var(--accent); }
+        input#userInput:focus { border-color: var(--accent); }
 
         .send-btn {
             background: var(--accent); color: white; border: none;
@@ -98,14 +122,24 @@ HTML_TEMPLATE = """
         }
 
         @keyframes slideUp { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
-
-        /* Code Block Styling */
         pre { background: #000; color: #00d2ff; padding: 15px; border-radius: 12px; margin: 10px 0; overflow-x: auto; font-size: 0.85rem; }
     </style>
 </head>
 <body>
 
-    <div class="app-shell">
+    <div id="login-overlay">
+        <div style="margin-bottom: 30px; font-weight: 800; font-size: 1.5rem; letter-spacing: 2px;">
+            MAYANK <span style="color:var(--accent)">TRADING</span>
+        </div>
+        <div class="login-card">
+            <h3 style="margin-bottom: 20px;">🛡️ SECURE LOGIN</h3>
+            <input type="password" id="passKey" class="login-input" placeholder="ENTER ACCESS KEY">
+            <button class="access-btn" onclick="validateKey()">ACCESS TERMINAL</button>
+        </div>
+        <div class="footer-tag">© 2026 | DESIGNED BY <span style="color:var(--accent)">HINDIE VLOGGER</span></div>
+    </div>
+
+    <div class="app-shell" id="mainApp">
         <header>
             <div class="logo">MAYANK AI</div>
             <div class="controls">
@@ -129,6 +163,16 @@ HTML_TEMPLATE = """
         const chatArea = document.getElementById('chat-area');
         const input = document.getElementById('userInput');
         const themeBtn = document.getElementById('themeBtn');
+        let currentPass = "";
+
+        // UPDATE: VALIDATION LOGIC
+        function validateKey() {
+            const keyInput = document.getElementById('passKey').value;
+            if(keyInput === "") return;
+            currentPass = keyInput;
+            document.getElementById('login-overlay').style.display = 'none';
+            document.getElementById('mainApp').style.display = 'flex';
+        }
 
         function toggleTheme() {
             if (document.body.hasAttribute('data-theme')) {
@@ -156,9 +200,13 @@ HTML_TEMPLATE = """
                 const res = await fetch('/chat', {
                     method: 'POST',
                     headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify({message: msg})
+                    body: JSON.stringify({message: msg, password: currentPass}) # Added password to request
                 });
                 const data = await res.json();
+                if(data.error) {
+                    document.getElementById(tempId).innerText = "Access Denied. Please Refresh.";
+                    return;
+                }
                 document.getElementById(tempId).innerHTML = marked.parse(data.reply);
             } catch (err) {
                 document.getElementById(tempId).innerText = "Error: Check API Key or Internet.";
@@ -178,7 +226,12 @@ def index():
 
 @app.route("/chat", methods=["POST"])
 def chat():
-    user_msg = request.json.get("message")
+    # UPDATE: PASSWORD VERIFICATION
+    data = request.json
+    if data.get("password") != ACCESS_KEY:
+        return jsonify({"error": "Unauthorized"}), 401
+
+    user_msg = data.get("message")
     try:
         completion = client.chat.completions.create(
             model="llama-3.3-70b-versatile",
@@ -190,3 +243,6 @@ def chat():
         return jsonify({"reply": completion.choices[0].message.content})
     except Exception as e:
         return jsonify({"reply": f"Maaf kijiye, error aaya: {str(e)}"})
+
+if __name__ == "__main__":
+    app.run(debug=True)
