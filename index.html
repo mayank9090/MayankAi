@@ -89,7 +89,6 @@
         const bgm = document.getElementById('bgm');
         const scanSound = document.getElementById('scan-sound');
 
-        // PRIVATE KEY LOGIC UPDATED FOR VERCEL
         let isSpeaking = false;
         let recognition;
 
@@ -112,7 +111,7 @@
             statusText.innerText = "Analyzing Neural Link...";
             reactor.classList.add('processing');
             try {
-                // UPDATE: Calling Vercel Backend
+                // Calling Vercel Backend
                 const res = await fetch('/api/chat', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
@@ -121,9 +120,10 @@
                 const data = await res.json();
                 
                 statusText.innerText = "Data Stream Received";
-                return data.candidates[0].content.parts[0].text;
+                // Groq response formatting handled by backend
+                return data.choices[0].message.content;
             } catch (e) { 
-                return "Sir, uplink error detected. Please check your Vercel Environment Variables."; 
+                return "Sir, uplink error detected. Please check Groq API settings."; 
             }
         }
 
