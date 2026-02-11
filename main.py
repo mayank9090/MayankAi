@@ -1,9 +1,11 @@
 import os
 import base64
-from flask import Flask, render_template_string, request, jsonify
+from flask import Flask, render_template_string, request, jsonify, session
 from groq import Groq
 
 app = Flask(__name__)
+# Memory ke liye secret key zaruri hai
+app.secret_key = "mayank_ai_elite_key_99"
 
 # Groq Client - Vercel Env se key uthayega
 client = Groq(api_key=os.environ.get("GROQ_API_KEY"))
@@ -56,6 +58,7 @@ HTML_TEMPLATE = """
         .login-card {
             background: #111214; padding: 40px 25px; border-radius: 24px;
             width: 90%; max-width: 350px; text-align: center; border: 1px solid var(--border);
+            backdrop-filter: blur(10px); /* Glassmorphism touch */
         }
         .login-input {
             width: 100%; padding: 14px; background: #000; border: 1px solid #333;
@@ -105,26 +108,30 @@ HTML_TEMPLATE = """
         .user-bubble { background: var(--user-bubble); color: var(--user-text); border-bottom-right-radius: 4px; font-weight: 500; }
         .ai-bubble { background: var(--ai-bubble); border: 1px solid var(--border); border-bottom-left-radius: 4px; }
 
+        /* --- NEXT LEVEL INPUT REFINEMENT --- */
         .input-wrapper {
             position: fixed; bottom: 0; left: 50%; transform: translateX(-50%);
             width: 100%; max-width: 800px; padding: 20px;
             background: var(--bg);
-            display: flex; gap: 12px; align-items: center;
+            display: flex; gap: 12px; align-items: flex-end; /* Align to bottom for multiline */
             border-top: 1px solid var(--border);
             z-index: 100; transition: bottom 0.1s ease-out;
         }
 
-        input#userInput {
+        /* Using Textarea for auto-resize input */
+        textarea#userInput {
             flex: 1; background: var(--ai-bubble); border: 1px solid var(--border);
-            border-radius: 16px; padding: 14px 20px; color: var(--text); outline: none; font-size: 16px;
+            border-radius: 16px; padding: 14px 20px; color: var(--text); outline: none; 
+            font-size: 16px; resize: none; max-height: 150px; min-height: 54px;
+            overflow-y: auto; line-height: 1.5;
         }
 
-        .icon-btn-upload { background: var(--ai-bubble); border: 1px solid var(--border); color: var(--text); width: 50px; height: 50px; border-radius: 16px; cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 1.2rem; }
+        .icon-btn-upload { background: var(--ai-bubble); border: 1px solid var(--border); color: var(--text); width: 50px; height: 50px; border-radius: 16px; cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 1.2rem; flex-shrink: 0; }
         .send-btn {
             background: var(--accent); color: white; border: none;
             width: 50px; height: 50px; border-radius: 16px;
             display: flex; justify-content: center; align-items: center;
-            cursor: pointer; font-size: 1.2rem; box-shadow: 0 8px 15px rgba(0, 210, 255, 0.3);
+            cursor: pointer; font-size: 1.2rem; box-shadow: 0 8px 15px rgba(0, 210, 255, 0.3); flex-shrink: 0;
         }
         
         #preview-img { display: none; width: 50px; height: 50px; border-radius: 12px; object-fit: cover; border: 2px solid var(--accent); margin-right: 5px; }
@@ -151,6 +158,7 @@ HTML_TEMPLATE = """
         <header>
             <div class="logo">MAYANK AI</div>
             <div class="controls">
+                <button class="btn-icon" id="voiceToggle" onclick="toggleVoice()">🔊 ON</button>
                 <button class="btn-icon" onclick="toggleTheme()" id="themeBtn">🌙 DARK</button>
             </div>
         </header>
@@ -164,11 +172,11 @@ HTML_TEMPLATE = """
                 <div class="q-card" onclick="quickMsg('Prompt generate: Is photo ka mast prompt banao ')">
                     <span>🖼️</span> <p>Prompt generate</p>
                 </div>
-                <div class="q-card" onclick="quickMsg('Explore Cricket: Cricket world ke updates batao ')">
-                    <span>🏏</span> <p>Explore Cricket</p>
+                <div class="q-card" onclick="quickMsg('YouTube Expert: Meri video ke liye viral script aur content idea do ')">
+                    <span>🎬</span> <p>YouTube Expert</p>
                 </div>
-                <div class="q-card" onclick="quickMsg('Write anything: Ek creative story ya post likho ')">
-                    <span>📝</span> <p>Write anything</p>
+                <div class="q-card" onclick="quickMsg('Coding Guru: Is code logic ko simplify karo aur optimized code likho ')">
+                    <span>💻</span> <p>Coding Guru</p>
                 </div>
                 <div class="q-card" onclick="quickMsg('Help me learn: Ise simple bhasha mein samjhao ')">
                     <span>🎓</span> <p>Help me learn</p>
@@ -180,7 +188,7 @@ HTML_TEMPLATE = """
             <label class="icon-btn-upload" for="file-upload">📷</label>
             <input type="file" id="file-upload" hidden accept="image/*" onchange="previewImage(this)">
             <img id="preview-img">
-            <input type="text" id="userInput" placeholder="Ask me anything..." autocomplete="off">
+            <textarea id="userInput" placeholder="Ask me anything..." autocomplete="off" rows="1" oninput="autoResize(this)"></textarea>
             <button class="send-btn" onclick="send()">🚀</button>
         </div>
     </div>
@@ -191,6 +199,7 @@ HTML_TEMPLATE = """
         const themeBtn = document.getElementById('themeBtn');
         let currentPass = "";
         let base64Image = null;
+        let voiceEnabled = true;
 
         function validateKey() {
             const keyInput = document.getElementById('passKey').value;
@@ -198,6 +207,28 @@ HTML_TEMPLATE = """
             currentPass = keyInput;
             document.getElementById('login-overlay').style.display = 'none';
             document.getElementById('mainApp').style.display = 'flex';
+        }
+
+        // --- AUTO RESIZE INPUT ---
+        function autoResize(el) {
+            el.style.height = '54px';
+            el.style.height = (el.scrollHeight) + 'px';
+        }
+
+        // --- VOICE ENGINE ---
+        function toggleVoice() {
+            voiceEnabled = !voiceEnabled;
+            document.getElementById('voiceToggle').innerText = voiceEnabled ? "🔊 ON" : "🔇 OFF";
+            if(!voiceEnabled) window.speechSynthesis.cancel();
+        }
+
+        function speak(text) {
+            if(!voiceEnabled) return;
+            window.speechSynthesis.cancel();
+            const utterance = new SpeechSynthesisUtterance(text.replace(/[#*`]/g, ''));
+            utterance.rate = 1.1;
+            utterance.pitch = 1.0;
+            window.speechSynthesis.speak(utterance);
         }
 
         function previewImage(input) {
@@ -215,6 +246,7 @@ HTML_TEMPLATE = """
 
         function quickMsg(txt) {
             input.value = txt;
+            autoResize(input);
             input.focus();
         }
 
@@ -237,6 +269,7 @@ HTML_TEMPLATE = """
             
             const imgToSend = base64Image;
             input.value = '';
+            input.style.height = '54px';
             base64Image = null;
             document.getElementById('preview-img').style.display = 'none';
             
@@ -257,6 +290,7 @@ HTML_TEMPLATE = """
 
                 const data = await res.json();
                 document.getElementById(tempId).innerHTML = marked.parse(data.reply);
+                speak(data.reply); // Voice response
             } catch (err) {
                 document.getElementById(tempId).innerText = "Error: Connection issue.";
             }
@@ -272,7 +306,12 @@ HTML_TEMPLATE = """
             });
         }
 
-        input.addEventListener("keypress", (e) => { if(e.key === "Enter") send(); });
+        input.addEventListener("keydown", (e) => { 
+            if(e.key === "Enter" && !e.shiftKey) { 
+                e.preventDefault();
+                send(); 
+            }
+        });
     </script>
 </body>
 </html>
@@ -280,6 +319,7 @@ HTML_TEMPLATE = """
 
 @app.route("/")
 def index():
+    session['history'] = [] # Reset memory on fresh load
     return render_template_string(HTML_TEMPLATE)
 
 @app.route("/chat", methods=["POST"])
@@ -291,30 +331,52 @@ def chat():
     user_msg = data.get("message")
     image_data = data.get("image")
 
+    # --- MEMORY LOGIC & ADVANCED PERSONA ---
+    if 'history' not in session:
+        session['history'] = []
+
+    persona = (
+        "You are Mayank AI Elite, a professional assistant. "
+        "Expertise: 1. YouTube Content & Viral Growth (suggest hooks, scripts) "
+        "2. Professional Coding Guru (optimized logic, clean code) "
+        "3. Portfolio Manager. "
+        "Style: Smart, expert-level Hinglish. Remember context from previous chat history."
+    )
+
     try:
         if image_data:
-            # Vision Logic for Prompt Generation
             base64_img = image_data.split(",")[1]
             response = client.chat.completions.create(
                 model="llama-3.2-11b-vision-preview",
                 messages=[{
                     "role": "user",
                     "content": [
-                        {"type": "text", "text": f"Analyze this image and generate a professional, high-quality prompt for an AI image generator. Respond in smart Hinglish. Context: {user_msg}"},
+                        {"type": "text", "text": f"{persona} Analyze this image and provide expert guidance. User: {user_msg}"},
                         {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{base64_img}"}}
                     ]
                 }]
             )
         else:
-            # Normal Text Logic
+            # Memory messages build up
+            messages = [{"role": "system", "content": persona}]
+            # Last 6 chats for memory context
+            for h in session['history'][-6:]:
+                messages.append(h)
+            messages.append({"role": "user", "content": user_msg})
+
             response = client.chat.completions.create(
                 model="llama-3.3-70b-versatile",
-                messages=[
-                    {"role": "system", "content": "You are Mayank AI, a professional assistant. Respond in smart Hinglish."},
-                    {"role": "user", "content": user_msg}
-                ]
+                messages=messages
             )
-        return jsonify({"reply": response.choices[0].message.content})
+
+        reply = response.choices[0].message.content
+        
+        # Save to memory
+        session['history'].append({"role": "user", "content": user_msg})
+        session['history'].append({"role": "assistant", "content": reply})
+        session.modified = True
+
+        return jsonify({"reply": reply})
     except Exception as e:
         return jsonify({"reply": f"System error: {str(e)}"})
 
