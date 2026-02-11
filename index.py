@@ -4,12 +4,13 @@ from groq import Groq
 
 app = Flask(__name__)
 
-# Groq Client
+# Groq Client - Vercel Env se key uthayega
 client = Groq(api_key=os.environ.get("GROQ_API_KEY"))
 
-# --- UPDATE: LOGIN KEY ---
-ACCESS_KEY = "MAYANKAI" 
-# -------------------------
+# --- UPDATE: AB PASSWORD HIDE RAHEGA ---
+# Agar Vercel mein ACCESS_KEY set nahi hai, toh default "MAYANKAI" chalega
+ACCESS_KEY = os.environ.get("ACCESS_KEY", "MAYANKAI") 
+# ---------------------------------------
 
 HTML_TEMPLATE = """
 <!DOCTYPE html>
@@ -49,7 +50,6 @@ HTML_TEMPLATE = """
 
         body { background: var(--bg); color: var(--text); height: 100vh; display: flex; justify-content: center; overflow: hidden; }
 
-        /* --- UPDATE: LOGIN SCREEN STYLES --- */
         #login-overlay {
             position: fixed; inset: 0; background: #050505; z-index: 999;
             display: flex; flex-direction: column; align-items: center; justify-content: center;
@@ -68,9 +68,8 @@ HTML_TEMPLATE = """
         }
         .footer-tag { font-size: 10px; opacity: 0.4; margin-top: 40px; text-align: center; letter-spacing: 1px; }
 
-        /* --- APP SHELL (Hidden initially) --- */
         .app-shell {
-            display: none; /* Changed from flex to none for login */
+            display: none;
             width: 100%; max-width: 800px; height: 100vh;
             background: var(--card); backdrop-filter: blur(20px);
             flex-direction: column; position: relative;
@@ -165,10 +164,13 @@ HTML_TEMPLATE = """
         const themeBtn = document.getElementById('themeBtn');
         let currentPass = "";
 
-        // UPDATE: VALIDATION LOGIC
         function validateKey() {
             const keyInput = document.getElementById('passKey').value;
-            if(keyInput === "") return;
+            if(keyInput === "") {
+                alert("Bhai Key toh daalo!");
+                return;
+            }
+            // Frontend par password ab save ho jayega aur requests mein jayega
             currentPass = keyInput;
             document.getElementById('login-overlay').style.display = 'none';
             document.getElementById('mainApp').style.display = 'flex';
@@ -200,16 +202,19 @@ HTML_TEMPLATE = """
                 const res = await fetch('/chat', {
                     method: 'POST',
                     headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify({message: msg, password: currentPass}) # Added password to request
+                    body: JSON.stringify({message: msg, password: currentPass}) 
                 });
-                const data = await res.json();
-                if(data.error) {
-                    document.getElementById(tempId).innerText = "Access Denied. Please Refresh.";
+                
+                if (res.status === 401) {
+                    alert("Unauthorized! Sahi key se login karein.");
+                    location.reload();
                     return;
                 }
+
+                const data = await res.json();
                 document.getElementById(tempId).innerHTML = marked.parse(data.reply);
             } catch (err) {
-                document.getElementById(tempId).innerText = "Error: Check API Key or Internet.";
+                document.getElementById(tempId).innerText = "Error: Connection issue.";
             }
             chatArea.scrollTop = chatArea.scrollHeight;
         }
@@ -226,8 +231,8 @@ def index():
 
 @app.route("/chat", methods=["POST"])
 def chat():
-    # UPDATE: PASSWORD VERIFICATION
     data = request.json
+    # Server par verification
     if data.get("password") != ACCESS_KEY:
         return jsonify({"error": "Unauthorized"}), 401
 
@@ -236,13 +241,13 @@ def chat():
         completion = client.chat.completions.create(
             model="llama-3.3-70b-versatile",
             messages=[
-                {"role": "system", "content": "You are Mayank AI, a premium and professional personal assistant. You respond in natural Hinglish. Be smart, concise, and helpful."},
+                {"role": "system", "content": "You are Mayank AI, a professional assistant. Respond in smart Hinglish."},
                 {"role": "user", "content": user_msg}
             ]
         )
         return jsonify({"reply": completion.choices[0].message.content})
     except Exception as e:
-        return jsonify({"reply": f"Maaf kijiye, error aaya: {str(e)}"})
+        return jsonify({"reply": f"System error: {str(e)}"})
 
 if __name__ == "__main__":
     app.run(debug=True)
