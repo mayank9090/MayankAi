@@ -129,14 +129,14 @@ HTML_TEMPLATE = """
 
     <div id="login-overlay">
         <div style="margin-bottom: 30px; font-weight: 800; font-size: 1.5rem; letter-spacing: 2px;">
-            MAYANK <span style="color:var(--accent)">TRADING</span>
+            MAYANK <span style="color:var(--accent)">AI ASSISTANCE</span>
         </div>
         <div class="login-card">
             <h3 style="margin-bottom: 20px;">🛡️ SECURE LOGIN</h3>
             <input type="password" id="passKey" class="login-input" placeholder="ENTER ACCESS KEY">
             <button class="access-btn" onclick="validateKey()">ACCESS TERMINAL</button>
         </div>
-        <div class="footer-tag">© 2026 | DESIGNED BY <span style="color:var(--accent)">HINDIE VLOGGER</span></div>
+        <div class="footer-tag">© 2026 | DESIGNED BY <span style="color:var(--accent)">हिNDIE VLOGGER</span></div>
     </div>
 
     <div class="app-shell" id="mainApp">
