@@ -46,6 +46,7 @@
             background: rgba(0, 210, 255, 0.05); padding: 15px; 
             border-radius: 10px; min-height: 50px; text-align: center;
             backdrop-filter: blur(5px); border: 1px solid rgba(0, 210, 255, 0.2);
+            max-height: 200px; overflow-y: auto;
         }
         
         .waves { display: none; gap: 5px; margin-top: 15px; height: 20px; align-items: center; }
@@ -92,38 +93,59 @@
         let isSpeaking = false;
         let recognition;
 
+        // UPDATED: Voice function with extra stability
         function speak(text) {
+            if (!text) return;
             isSpeaking = true;
             waveform.style.display = 'flex';
             window.speechSynthesis.cancel();
+            
             const utter = new SpeechSynthesisUtterance(text);
             utter.lang = 'hi-IN';
+            utter.rate = 1.0;
+            utter.pitch = 1.0;
+
             utter.onend = () => {
                 isSpeaking = false;
                 waveform.style.display = 'none';
                 reactor.classList.remove('processing');
                 startMic();
             };
+
+            utter.onerror = (e) => {
+                console.error("Speech Error:", e);
+                isSpeaking = false;
+                startMic();
+            };
+
             window.speechSynthesis.speak(utter);
         }
 
-        async function getGeminiResponse(query) {
+        // UPDATED: Proper Groq data parsing
+        async function getGroqResponse(query) {
             statusText.innerText = "Analyzing Neural Link...";
             reactor.classList.add('processing');
             try {
-                // Calling Vercel Backend
                 const res = await fetch('/api/chat', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ query: query })
                 });
-                const data = await res.json();
                 
+                const data = await res.json();
                 statusText.innerText = "Data Stream Received";
-                // Groq response formatting handled by backend
-                return data.choices[0].message.content;
+
+                // Groq API usually returns choices[0].message.content
+                if (data.choices && data.choices[0] && data.choices[0].message) {
+                    return data.choices[0].message.content;
+                } else if (data.text) { // If you simplified it in backend
+                    return data.text;
+                } else {
+                    return "Sir, the data stream is corrupted.";
+                }
             } catch (e) { 
-                return "Sir, uplink error detected. Please check Groq API settings."; 
+                console.error("Fetch Error:", e);
+                return "Sir, uplink error detected. Please check Vercel logs."; 
             }
         }
 
@@ -159,10 +181,12 @@
                 const transcript = event.results[event.results.length - 1][0].transcript.toLowerCase();
                 responseBox.innerText = "Heard: " + transcript;
 
+                // Trigger check
                 if (transcript.includes("hey mayank") || transcript.includes("mayank")) {
                     scanSound.play(); 
                     recognition.stop();
-                    const aiRes = await getGeminiResponse(transcript);
+                    // Using the new Groq handler
+                    const aiRes = await getGroqResponse(transcript);
                     responseBox.innerText = "Mayank AI: " + aiRes;
                     speak(aiRes);
                 }
@@ -172,7 +196,11 @@
             recognition.start();
         }
 
-        function startMic() { if(recognition && !isSpeaking) try { recognition.start(); } catch(e) {} }
+        function startMic() { 
+            if(recognition && !isSpeaking) {
+                try { recognition.start(); } catch(e) {}
+            }
+        }
     </script>
 </body>
 </html>
