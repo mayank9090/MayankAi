@@ -4,10 +4,10 @@ from flask import Flask, render_template_string, request, jsonify, session
 from groq import Groq
 
 app = Flask(__name__)
-# Memory ke liye secret key zaruri hai
+# Memory ke liye secret key
 app.secret_key = "mayank_ai_elite_key_99"
 
-# Groq Client - Vercel Env se key uthayega
+# Groq Client
 client = Groq(api_key=os.environ.get("GROQ_API_KEY"))
 
 # Password logic
@@ -58,7 +58,7 @@ HTML_TEMPLATE = """
         .login-card {
             background: #111214; padding: 40px 25px; border-radius: 24px;
             width: 90%; max-width: 350px; text-align: center; border: 1px solid var(--border);
-            backdrop-filter: blur(10px); /* Glassmorphism touch */
+            backdrop-filter: blur(10px);
         }
         .login-input {
             width: 100%; padding: 14px; background: #000; border: 1px solid #333;
@@ -93,7 +93,6 @@ HTML_TEMPLATE = """
 
         #chat-area { flex: 1; overflow-y: auto; padding: 20px; display: flex; flex-direction: column; gap: 20px; scroll-behavior: smooth; padding-bottom: 120px; }
 
-        /* --- QUICK ACTION CARDS UPDATE --- */
         .quick-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 10px; }
         .q-card { background: var(--ai-bubble); border: 1px solid var(--border); padding: 18px; border-radius: 20px; cursor: pointer; transition: 0.2s; text-align: left; }
         .q-card:active { transform: scale(0.95); background: rgba(0, 210, 255, 0.1); }
@@ -108,17 +107,15 @@ HTML_TEMPLATE = """
         .user-bubble { background: var(--user-bubble); color: var(--user-text); border-bottom-right-radius: 4px; font-weight: 500; }
         .ai-bubble { background: var(--ai-bubble); border: 1px solid var(--border); border-bottom-left-radius: 4px; }
 
-        /* --- NEXT LEVEL INPUT REFINEMENT --- */
         .input-wrapper {
             position: fixed; bottom: 0; left: 50%; transform: translateX(-50%);
             width: 100%; max-width: 800px; padding: 20px;
             background: var(--bg);
-            display: flex; gap: 12px; align-items: flex-end; /* Align to bottom for multiline */
+            display: flex; gap: 12px; align-items: flex-end;
             border-top: 1px solid var(--border);
             z-index: 100; transition: bottom 0.1s ease-out;
         }
 
-        /* Using Textarea for auto-resize input */
         textarea#userInput {
             flex: 1; background: var(--ai-bubble); border: 1px solid var(--border);
             border-radius: 16px; padding: 14px 20px; color: var(--text); outline: none; 
@@ -165,7 +162,7 @@ HTML_TEMPLATE = """
 
         <div id="chat-area">
             <div class="msg-row ai-row">
-                <div class="ai-bubble bubble">Swagat hai Mayank! Aaj main aapki kya madad kar sakta hoon?</div>
+                <div class="ai-bubble bubble">Hi... Bol bhai!</div>
             </div>
 
             <div class="quick-grid" id="quickActions">
@@ -200,6 +197,7 @@ HTML_TEMPLATE = """
         let currentPass = "";
         let base64Image = null;
         let voiceEnabled = true;
+        let chatHistory = []; // FRONTEND MEMORY
 
         function validateKey() {
             const keyInput = document.getElementById('passKey').value;
@@ -209,13 +207,11 @@ HTML_TEMPLATE = """
             document.getElementById('mainApp').style.display = 'flex';
         }
 
-        // --- AUTO RESIZE INPUT ---
         function autoResize(el) {
             el.style.height = '54px';
             el.style.height = (el.scrollHeight) + 'px';
         }
 
-        // --- VOICE ENGINE ---
         function toggleVoice() {
             voiceEnabled = !voiceEnabled;
             document.getElementById('voiceToggle').innerText = voiceEnabled ? "🔊 ON" : "🔇 OFF";
@@ -227,7 +223,6 @@ HTML_TEMPLATE = """
             window.speechSynthesis.cancel();
             const utterance = new SpeechSynthesisUtterance(text.replace(/[#*`]/g, ''));
             utterance.rate = 1.1;
-            utterance.pitch = 1.0;
             window.speechSynthesis.speak(utterance);
         }
 
@@ -283,21 +278,31 @@ HTML_TEMPLATE = """
                 const res = await fetch('/chat', {
                     method: 'POST',
                     headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify({message: msg, password: currentPass, image: imgToSend}) 
+                    body: JSON.stringify({
+                        message: msg, 
+                        password: currentPass, 
+                        image: imgToSend,
+                        history: chatHistory // SENDING MEMORY
+                    }) 
                 });
                 
                 if (res.status === 401) { location.reload(); return; }
 
                 const data = await res.json();
                 document.getElementById(tempId).innerHTML = marked.parse(data.reply);
-                speak(data.reply); // Voice response
+                
+                // UPDATE FRONTEND HISTORY
+                chatHistory.push({"role": "user", "content": msg});
+                chatHistory.push({"role": "assistant", "content": data.reply});
+                if(chatHistory.length > 10) chatHistory.shift(); // Keep context fresh
+
+                speak(data.reply); 
             } catch (err) {
                 document.getElementById(tempId).innerText = "Error: Connection issue.";
             }
             chatArea.scrollTop = chatArea.scrollHeight;
         }
 
-        // --- KEYBOARD LIFT FIX ---
         if (window.visualViewport) {
             window.visualViewport.addEventListener('resize', () => {
                 const wrapper = document.querySelector('.input-wrapper');
@@ -319,7 +324,6 @@ HTML_TEMPLATE = """
 
 @app.route("/")
 def index():
-    session['history'] = [] # Reset memory on fresh load
     return render_template_string(HTML_TEMPLATE)
 
 @app.route("/chat", methods=["POST"])
@@ -330,16 +334,14 @@ def chat():
 
     user_msg = data.get("message")
     image_data = data.get("image")
+    browser_history = data.get("history", [])
 
-    # --- MEMORY LOGIC & ADVANCED PERSONA (SHORT & CRISP UPDATE) ---
-    if 'history' not in session:
-        session['history'] = []
-
+    # --- UPDATED STRICT PERSONA ---
     persona = (
         "You are Mayank AI Elite. Expert in YouTube growth & Coding logic. "
         "STRICT RULE: Be extremely concise. Give short, point-to-point, and crisp answers. "
-        "Do NOT write long paragraphs. Use bullet points for steps. "
-        "Respond in smart expert-level Hinglish. Remember previous context."
+        "Limit response to 1-2 short paragraphs or bullet points. "
+        "Respond in smart Hinglish. Use previous context from history."
     )
 
     try:
@@ -350,17 +352,15 @@ def chat():
                 messages=[{
                     "role": "user",
                     "content": [
-                        {"type": "text", "text": f"{persona} Analyze this image and give a short expert response. User: {user_msg}"},
+                        {"type": "text", "text": f"{persona} Analyze briefly. User: {user_msg}"},
                         {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{base64_img}"}}
                     ]
                 }]
             )
         else:
-            # Memory messages build up
+            # Build messages using Browser History
             messages = [{"role": "system", "content": persona}]
-            # Last 6 chats for memory context
-            for h in session['history'][-6:]:
-                messages.append(h)
+            messages.extend(browser_history) # Adding context
             messages.append({"role": "user", "content": user_msg})
 
             response = client.chat.completions.create(
@@ -369,12 +369,6 @@ def chat():
             )
 
         reply = response.choices[0].message.content
-        
-        # Save to memory
-        session['history'].append({"role": "user", "content": user_msg})
-        session['history'].append({"role": "assistant", "content": reply})
-        session.modified = True
-
         return jsonify({"reply": reply})
     except Exception as e:
         return jsonify({"reply": f"System error: {str(e)}"})
