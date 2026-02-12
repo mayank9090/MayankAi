@@ -331,16 +331,15 @@ def chat():
     user_msg = data.get("message")
     image_data = data.get("image")
 
-    # --- MEMORY LOGIC & ADVANCED PERSONA ---
+    # --- MEMORY LOGIC & ADVANCED PERSONA (SHORT & CRISP UPDATE) ---
     if 'history' not in session:
         session['history'] = []
 
     persona = (
-        "You are Mayank AI Elite, a professional assistant. "
-        "Expertise: 1. YouTube Content & Viral Growth (suggest hooks, scripts) "
-        "2. Professional Coding Guru (optimized logic, clean code) "
-        "3. Portfolio Manager. "
-        "Style: Smart, expert-level Hinglish. Remember context from previous chat history."
+        "You are Mayank AI Elite. Expert in YouTube growth & Coding logic. "
+        "STRICT RULE: Be extremely concise. Give short, point-to-point, and crisp answers. "
+        "Do NOT write long paragraphs. Use bullet points for steps. "
+        "Respond in smart expert-level Hinglish. Remember previous context."
     )
 
     try:
@@ -351,7 +350,7 @@ def chat():
                 messages=[{
                     "role": "user",
                     "content": [
-                        {"type": "text", "text": f"{persona} Analyze this image and provide expert guidance. User: {user_msg}"},
+                        {"type": "text", "text": f"{persona} Analyze this image and give a short expert response. User: {user_msg}"},
                         {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{base64_img}"}}
                     ]
                 }]
